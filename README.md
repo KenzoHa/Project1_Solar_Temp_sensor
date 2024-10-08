@@ -12,7 +12,8 @@ Dit project optimaliseert een crypto-mining-rig door deze alleen te laten werken
   - Rood: Te hoge temperatuur (> 25°C)
   - Blauw: Te lage temperatuur (< 14°C)
 - **Drukknop**: Handmatige meting (zowel temperatuur als licht).
-- **Bluetooth-verbinding**: Toekomstige connectiviteit met mobiele apparaten.
+- **Bluetooth-verbinding**: Connectiviteit met mobiele apparaten (behalve iOS-apparaten).
+- **Webpagina**: Via een webpagina kan data (mining-rig status) geraadpleegd worden. 
 
 ## Installatie
 1. Benodigdheden: 
@@ -27,8 +28,8 @@ Dit project optimaliseert een crypto-mining-rig door deze alleen te laten werken
 3. Upload de code naar je FireBeetle ESP32-E.
 
 ## Toekomstige Verbeteringen
-- Directe integratie met de mining-rig met Bluetooth.
-- Webpagina aanmaken om data te raadplegen.
+- Directe integratie met de mining-rig via Bluetooth/WiFi.
+- Webpagina verbeteren.
 
 ## Contact
-Voor vragen: [kenzo.haemerlinck@hotmail.be].
+Voor vragen: [kenzo.haemerlinck@student.kdg.be].
