@@ -28,7 +28,7 @@ Dit project optimaliseert een crypto-mining-rig door deze alleen te laten werken
 3. Upload de code naar je FireBeetle ESP32-E.
 
 ## Toekomstige Verbeteringen
-- Directe integratie met de mining-rig via Bluetooth/WiFi.
+- Integratie van ActivationSensor met de mining-rig via WiFi. (of LAN?)
 - Webpagina verbeteren.
 
 ## Contact
