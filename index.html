@@ -1,0 +1,270 @@
+<!-- 
+RandomNerdTutorials 7/10/2024: https://randomnerdtutorials.com/esp32-web-bluetooth/ -> Samplecode
+    Rui Santos
+    Complete project details at https://RandomNerdTutorials.com/esp32-web-bluetooth/
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
+    The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+OpenAI (2024) - GPT 3.5 - https://chatgpt.com/ 
+Anthropic AI (2024) - Claude 3.5 Sonnet - https://claude.ai/new
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mining-rig Activation-Sensor Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+    <header class="topnav">
+        <h1>Mining-rig Activation-Sensor Dashboard</h1>
+    </header>
+    <main class="content">
+        <div class="column">
+            <div class="card connection-card">
+                <h2>Connection Status</h2>
+                <p class="gray-label" style="text-align: center;">Status: <strong><span id="bleState">Disconnected</span></strong></p>
+                <div class="button-container">
+                    <button id="connectBleButton" class="connectButton">Connect to ESP32</button>
+                    <button id="disconnectBleButton" class="disconnectButton">Disconnect ESP32</button>
+                </div>
+            </div>
+
+            <div class="card rgb-card" id="rgbCard">
+                <h2>RGB-LED Status</h2>
+                <p><span class="status-indicator" id="rgbColorIndicator"></span></p>
+            </div>
+        </div>
+
+        <div class="column center-column">
+            <div class="card sensor-card">
+                <h2>Sensor Readings</h2>
+                <button id="requestDataButton" class="onButton center-button">Request Current Data</button>
+                <div id="sensorData">
+                    <p>Temperature: <span id="temperatureValue">--</span>°C</p>
+                    <p>Light Level: <span id="lightValue">--</span></p>
+                </div>
+                <p>Last update: <span id="timestamp">Never</span></p>
+            </div>
+        </div>
+
+        <div class="column">
+            <div class="card log-card">
+                <h2>Data Log</h2>
+                <div class="log-content">
+                    <div id="dataLog"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer class="footer">
+        <p><a href="https://randomnerdtutorials.com/">Created by RandomNerdTutorials.com</a></p>
+        <p><a href="https://RandomNerdTutorials.com/esp32-web-bluetooth/">Read the full project here.</a></p>
+    </footer>
+
+    <script>
+        // DOM Elements
+        const connectButton = document.getElementById('connectBleButton');
+        const disconnectButton = document.getElementById('disconnectBleButton');
+        const requestDataButton = document.getElementById('requestDataButton');
+        const bleStateContainer = document.getElementById('bleState');
+        const rgbColorIndicator = document.getElementById('rgbColorIndicator');
+        const rgbCard = document.getElementById('rgbCard');
+        const temperatureValue = document.getElementById('temperatureValue');
+        const lightValue = document.getElementById('lightValue');
+        const timestampContainer = document.getElementById('timestamp');
+        const dataLog = document.getElementById('dataLog');
+
+        // BLE Device Specs
+        const deviceName = 'ESP32_Kenzo';
+        const bleService = '19b10000-e8f2-537e-4f6c-d104768a1214';
+        const sensorCharacteristic = '19b10001-e8f2-537e-4f6c-d104768a1214';
+
+        // Global Variables
+        let bleServer;
+        let bleServiceFound;
+        let sensorCharacteristicFound;
+        let isConnected = false;
+        let debounceTimeout;
+        let isManualRequest = false;
+
+        // Event Listeners
+        connectButton.addEventListener('click', connectToDevice);
+        disconnectButton.addEventListener('click', disconnectDevice);
+        requestDataButton.addEventListener('click', debounceRequestCurrentData);
+
+        function isWebBluetoothEnabled() {
+            if (!navigator.bluetooth) {
+                console.log("Web Bluetooth API is not available in this browser!");
+                bleStateContainer.innerHTML = "Web Bluetooth API is not available in this browser!";
+                return false;
+            }
+            return true;
+        }
+
+        function connectToDevice() {
+            if (!isWebBluetoothEnabled()) return;
+
+            console.log('Connecting to device...');
+            bleStateContainer.innerHTML = 'Connecting...';
+            bleStateContainer.style.color = "#FFA500";
+            navigator.bluetooth.requestDevice({
+                filters: [{name: deviceName}],
+                optionalServices: [bleService]
+            })
+            .then(device => {
+                console.log('Device selected:', device.name);
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+                return device.gatt.connect();
+            })
+            .then(gattServer => {
+                bleServer = gattServer;
+                isConnected = true;
+                console.log("Connected to GATT Server");
+                updateConnectionStatus();
+                return bleServer.getPrimaryService(bleService);
+            })
+            .then(service => {
+                bleServiceFound = service;
+                return service.getCharacteristic(sensorCharacteristic);
+            })
+            .then(characteristic => {
+                sensorCharacteristicFound = characteristic;
+                characteristic.addEventListener('characteristicvaluechanged', handleCharacteristicChange);
+                return characteristic.startNotifications();
+            })
+            .catch(error => {
+                console.log('Error:', error);
+                bleStateContainer.innerHTML = "Error: " + error;
+                bleStateContainer.style.color = "#d13a30";
+            });
+        }
+
+        function disconnectDevice() {
+            if (bleServer && bleServer.connected) {
+                if (sensorCharacteristicFound) {
+                    sensorCharacteristicFound.stopNotifications()
+                        .then(() => {
+                            bleServer.disconnect();
+                            isConnected = false;
+                            updateConnectionStatus();
+                            console.log("Device Disconnected");
+                        })
+                        .catch(error => console.log(error));
+                }
+            }
+        }
+
+        function updateConnectionStatus() {
+            if (isConnected) {
+                bleStateContainer.innerHTML = "Connected";
+                bleStateContainer.style.color = "#24af37";
+            } else {
+                bleStateContainer.innerHTML = "Disconnected";
+                bleStateContainer.style.color = "#d13a30";
+            }
+        }
+
+        function onDisconnected() {
+            isConnected = false;
+            updateConnectionStatus();
+            addToDataLog("Device disconnected");
+        }
+
+        function handleCharacteristicChange(event) {
+            if (isManualRequest) return;
+            const value = new TextDecoder().decode(event.target.value);
+            console.log("Received:", value);
+            
+            const matches = value.match(/Temp: ([\d.-]+), Light: (\d+)/);
+            if (matches) {
+                const temperature = parseFloat(matches[1]);
+                const light = parseInt(matches[2]);
+                
+                temperatureValue.textContent = temperature;
+                lightValue.textContent = light;
+                updateRgbStatus(temperature, light);
+                
+                timestampContainer.textContent = getDateTime();
+                addToDataLog(`Temperature: ${temperature}°C, Light: ${light}`);
+            }
+        }
+
+        function debounceRequestCurrentData() {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(requestCurrentData, 100);
+        }
+
+        function requestCurrentData() {
+            if (!isConnected) {
+                alert("Please connect to the device first!");
+                return;
+            }
+            isManualRequest = true;
+            addToDataLog("Data requested manually");
+            
+            requestDataButton.disabled = true;
+
+            sensorCharacteristicFound.readValue()
+                .then(value => {
+                    const data = new TextDecoder().decode(value);
+                    console.log("Received:", data);
+                    
+                    const matches = data.match(/Temp: ([\d.-]+), Light: (\d+)/);
+                    if (matches) {
+                        const temperature = parseFloat(matches[1]);
+                        const light = parseInt(matches[2]);
+                        
+                        temperatureValue.textContent = temperature;
+                        lightValue.textContent = light;
+                        updateRgbStatus(temperature, light);
+                        
+                        timestampContainer.textContent = getDateTime();
+                        addToDataLog(`Temperature: ${temperature}°C, Light: ${light}`);
+                    }
+                })
+                .catch(error => {
+                    console.log('Error reading characteristic:', error);
+                    addToDataLog("Error requesting data: " + error);
+                })
+                .finally(() => {
+                    requestDataButton.disabled = false;
+                    isManualRequest = false;
+                });
+        }
+
+        function updateRgbStatus(temperature, light) {
+            let color = "";
+            if (temperature <= 14.0) {
+                color = "blue";
+                rgbCard.style.backgroundColor = color; // Change background color
+            } else if (temperature >= 25.0) {
+                color = "red";
+                rgbCard.style.backgroundColor = color; // Change background color
+            } else if (temperature >= 14.1 && temperature <= 24.9) {
+                if (light <= 1800) {
+                    color = "purple";
+                    rgbCard.style.backgroundColor = color; // Change background color
+                } else {
+                    color = "yellow";
+                    rgbCard.style.backgroundColor = color; // Change background color
+                }
+            }
+            // Removed the text update for RGB color
+        }
+
+        function addToDataLog(message) {
+            const logEntry = document.createElement('p');
+            logEntry.textContent = `${getDateTime()}: ${message}`;
+            dataLog.appendChild(logEntry);
+        }
+
+        function getDateTime() {
+            const now = new Date();
+            return now.toLocaleString();
+        }
+    </script>
+</body>
+</html>
