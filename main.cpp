@@ -183,6 +183,7 @@ void controlRbg() {
 // New function to show data when connected
 void showDataConnected() {
   if (deviceConnected) {
+    blinkLedGreen();
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillisDataSend >= INTERVAL_DATA_SEND) {
       float temperature = getTemp();
@@ -246,7 +247,6 @@ void setup() {
 }
 
 void loop() {
-  blinkLedGreen();
   //showTempSerial();       This can be used to test hardware while not connected
   //showLightSerial();      This can be used to test hardware while not connected
   controlRbg();
